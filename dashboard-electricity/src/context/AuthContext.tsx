@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import axios from 'axios';
 
 interface User {
   id: string;
@@ -12,18 +13,14 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data for demo purposes
-const MOCK_USER: User = {
-  id: '1',
-  name: 'Alex Johnson',
-  email: 'alex@powercompany.com',
-  role: 'admin'
-};
+// API configuration
+const API_URL = 'http://localhost:5000/api';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -38,16 +35,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
+  const signup = async (name: string, email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/signup`, {
+        name,
+        email,
+        password
+      });
+      
+      const { user, token } = response.data;
+      setUser(user);
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('token', token);
+      
+      // Set token for future requests
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } catch (error) {
+      console.error('Signup failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await axios.post(`${API_URL}/login`, {
+        email,
+        password
+      });
       
-      // In a real app, this would be an API call to validate credentials
-      // For demo purposes, accept any credentials and return mock user
-      setUser(MOCK_USER);
-      localStorage.setItem('user', JSON.stringify(MOCK_USER));
+      const { user, token } = response.data;
+      setUser(user);
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('token', token);
+      
+      // Set token for future requests
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -59,6 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    delete axios.defaults.headers.common['Authorization'];
   };
 
   return (
@@ -67,6 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated: !!user,
       isLoading,
       login,
+      signup,
       logout
     }}>
       {children}

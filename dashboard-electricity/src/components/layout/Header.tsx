@@ -3,6 +3,7 @@ import { Menu, Bell, Sun, Moon, User } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { mockAlerts } from '../../data/mockData';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -11,8 +12,18 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   
   const unreadAlerts = mockAlerts.filter(alert => !alert.acknowledged).length;
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    }
+  };
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm z-10 transition-colors duration-200">
@@ -59,17 +70,40 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             
             {/* Profile dropdown */}
             <div className="relative ml-3">
-              <div className="flex items-center">
-                <button className="flex text-sm rounded-full focus:outline-none">
-                  <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
-                    <User size={16} />
+              {user ? (
+                <div className="flex items-center">
+                  <button className="flex text-sm rounded-full focus:outline-none">
+                    <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                      <User size={16} />
+                    </div>
+                  </button>
+                  <div className="ml-2 hidden md:flex flex-col">
+                    <span className="text-sm font-medium">{user.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{user.role}</span>
                   </div>
-                </button>
-                <div className="ml-2 hidden md:flex flex-col">
-                  <span className="text-sm font-medium">{user?.name}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{user?.role}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="ml-4 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  >
+                    Logout
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center space-x-4">
+                  <Link
+                    to="/login"
+                    className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    to="/signup"
+                    className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md transition-colors duration-200"
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>
