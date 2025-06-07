@@ -14,6 +14,7 @@ import DataManagement from '../pages/DataManagement';
 import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
 import Login from '../pages/Login';
+import Signup from '../pages/Signup';
 import NotFound from '../pages/NotFound';
 
 // Protected route component
@@ -42,6 +43,11 @@ const AppRouter: React.FC = () => {
         <Route path="/login" element={
           <AuthLayout>
             <Login />
+          </AuthLayout>
+        } />
+        <Route path="/signup" element={
+          <AuthLayout>
+            <Signup />
           </AuthLayout>
         } />
         

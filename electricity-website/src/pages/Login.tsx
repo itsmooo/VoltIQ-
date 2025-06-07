@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Zap } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -9,7 +8,6 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('password');
   const [error, setError] = useState('');
   const { login, isLoading } = useAuth();
-  const navigate = useNavigate();
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,7 +15,8 @@ const Login: React.FC = () => {
     
     try {
       await login(email, password);
-      navigate('/');
+      // Redirect to the dashboard application
+      window.location.href = 'http://localhost:5173';
     } catch (err) {
       setError('Invalid email or password');
     }
