@@ -3,6 +3,8 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
+const { spawn } = require('child_process');
+const path = require('path');
 
 dotenv.config();
 
@@ -13,6 +15,51 @@ app.use(express.json());
 // In-memory storage for demo purposes
 const users = [];
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Function to run Python prediction script
+const predictEnergyConsumption = async (data) => {
+  return new Promise((resolve, reject) => {
+    // Ensure dayOfWeek is a number (0-6) for the Python script
+    if (typeof data.dayOfWeek === 'string') {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      data.dayOfWeek = days.indexOf(data.dayOfWeek);
+      if (data.dayOfWeek === -1) data.dayOfWeek = new Date().getDay(); // Default to current day if invalid
+    }
+
+    const pythonProcess = spawn('python', [
+      path.join(__dirname, '..', '..', 'src', 'ml', 'api_bridge.py'),
+      JSON.stringify(data)
+    ]);
+
+    let result = '';
+    let errorOutput = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      result += data.toString();
+      console.log('Python output:', data.toString());
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+      console.error(`Python Error: ${data}`);
+    });
+
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Python process exited with code ${code}. Error: ${errorOutput}`));
+        return;
+      }
+      try {
+        const trimmedResult = result.trim();
+        console.log('Trying to parse:', trimmedResult);
+        resolve(JSON.parse(trimmedResult));
+      } catch (e) {
+        console.error('Parse error:', e);
+        reject(new Error(`Failed to parse prediction result: ${result}`));
+      }
+    });
+  });
+};
 
 // Add default admin user
 const initializeDefaultUser = async () => {
@@ -150,6 +197,29 @@ app.get('/api/profile', authenticateToken, (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+// Energy consumption prediction endpoint
+app.post('/api/predict', authenticateToken, async (req, res) => {
+  try {
+    const prediction = await predictEnergyConsumption(req.body);
+    res.json(prediction);
+  } catch (error) {
+    console.error('Prediction error:', error);
+    res.status(500).json({ error: 'Failed to make prediction' });
+  }
+});
+
+// Public prediction endpoint
+app.post('/api/public/predict', async (req, res) => {
+  try {
+    const prediction = await predictEnergyConsumption(req.body);
+    res.json(prediction);
+  } catch (error) {
+    console.error('Prediction error:', error);
+    res.status(500).json({ error: 'Failed to make prediction' });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
+  initializeDefaultUser();
 });

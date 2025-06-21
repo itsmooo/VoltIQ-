@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { ArrowUp, ArrowDown, RefreshCw, AlertTriangle } from 'lucide-react';
+import EnergyPredictor from '../components/EnergyPredictor';
 
 // Components
 import ConsumptionChart from '../components/charts/ConsumptionChart';
@@ -99,6 +100,12 @@ const Dashboard: React.FC = () => {
             />
           </div>
 
+          {/* Energy Predictor */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-colors duration-200 mb-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Energy Consumption Predictor</h3>
+            <EnergyPredictor />
+          </div>
+
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-colors duration-200">
@@ -128,6 +135,11 @@ const Dashboard: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-colors duration-200">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Recent Alerts</h3>
               <AlertsList limit={5} />
+            </div>
+            
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-colors duration-200">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Energy Predictor</h3>
+              <EnergyPredictor />
             </div>
           </div>
         </>
