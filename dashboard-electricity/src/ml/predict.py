@@ -285,7 +285,6 @@ def predict():
                 "success": False, 
                 "error": "No input data provided. Please send JSON data."
             }), 400
-        predictor = EnergyPredictor()
 
         if not predictor.is_loaded:
             return jsonify({
@@ -312,9 +311,6 @@ def predict():
 def model_info():
     """Get detailed model information"""
     try:
-        print("hey")
-        predictor = EnergyPredictor()
-        print(predictor.is_loaded)
         if not predictor.is_loaded:
             return jsonify({"error": "Model not loaded"}), 400
         
@@ -364,7 +360,6 @@ def internal_error(error):
 if __name__ == '__main__':
     print("=" * 50)
     print("Starting Energy Prediction Server...")
-    predictor = EnergyPredictor()
     print(f"Model loaded: {predictor.is_loaded}")
     
     if predictor.is_loaded:

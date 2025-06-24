@@ -101,10 +101,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Energy Predictor */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-colors duration-200 mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Energy Consumption Predictor</h3>
-            <EnergyPredictor />
-          </div>
+          <EnergyPredictor />
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -138,8 +135,21 @@ const Dashboard: React.FC = () => {
             </div>
             
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-colors duration-200">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Energy Predictor</h3>
-              <EnergyPredictor />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Quick Stats</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Peak Hour Today:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">2:00 PM</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Energy Saved:</span>
+                  <span className="font-medium text-green-600">12.5 kWh</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Cost Today:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">$24.75</span>
+                </div>
+              </div>
             </div>
           </div>
         </>

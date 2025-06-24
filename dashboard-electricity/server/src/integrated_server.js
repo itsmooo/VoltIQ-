@@ -10,7 +10,15 @@ const fs = require('fs');
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// Configure CORS properly
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 app.use(express.json());
 
 // In-memory storage for demo purposes
