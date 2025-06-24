@@ -22,6 +22,24 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 app = Flask(__name__)
 CORS(app)
 
+# Try to import TensorFlow/Keras
+try:
+    import tensorflow as tf
+    import keras
+    TF_AVAILABLE = True
+    logger.info("TensorFlow/Keras available")
+except ImportError as e:
+    logger.warning(f"TensorFlow/Keras not available: {e}")
+    TF_AVAILABLE = False
+    # Create dummy classes to handle loading
+    class DummyModel:
+        def predict(self, X):
+            # Simple fallback prediction based on features
+            return np.random.uniform(5, 50, size=(X.shape[0],))
+    
+    tf = None
+    keras = None
+
 class EnergyPredictor:
     def __init__(self):
         """Initialize the energy predictor by loading the model and scalers"""
@@ -32,6 +50,7 @@ class EnergyPredictor:
         self.feature_cols = []
         self.sequence_length = 24
         self.is_loaded = False
+        self.use_fallback = False
         
         self._load_models()
     
@@ -41,10 +60,21 @@ class EnergyPredictor:
             # Load the main model
             model_path = os.path.join(self.models_path, 'electricity_consumption_models.pkl')
             print('path of the model', model_path)
+            
             if os.path.exists(model_path):
-                with open(model_path, 'rb') as f:
-                    self.model = pickle.load(f)
-                logger.info("Main model loaded successfully")
+                try:
+                    with open(model_path, 'rb') as f:
+                        self.model = pickle.load(f)
+                    logger.info("Main model loaded successfully")
+                except Exception as e:
+                    logger.error(f"Error loading main model: {str(e)}")
+                    if not TF_AVAILABLE and ("tensorflow" in str(e) or "keras" in str(e)):
+                        logger.info("Using fallback prediction model due to TensorFlow/Keras unavailability")
+                        self.model = DummyModel()
+                        self.use_fallback = True
+                    else:
+                        logger.warning(f"Model file loading failed: {model_path}")
+                        return
             else:
                 logger.warning(f"Model file not found: {model_path}")
                 return
@@ -73,7 +103,10 @@ class EnergyPredictor:
                 logger.info("Using default feature columns")
             
             self.is_loaded = True
-            logger.info("All models loaded successfully!")
+            if self.use_fallback:
+                logger.info("Fallback model loaded successfully!")
+            else:
+                logger.info("All models loaded successfully!")
             
         except Exception as e:
             logger.error(f"Error loading models: {str(e)}")
@@ -190,6 +223,54 @@ class EnergyPredictor:
             basic_features = np.array([list(features.values())[:len(self.feature_cols)]]).reshape(1, -1)
             return basic_features
     
+    def _calculate_simple_prediction(self, features):
+        """Calculate a simple prediction based on features when ML model is not available"""
+        try:
+            # Base consumption
+            base_consumption = 20.0
+            
+            # Temperature effect
+            temp = features.get('Temperature', 25)
+            if temp < 18 or temp > 26:  # Heating/cooling needed
+                base_consumption += abs(temp - 22) * 1.5
+            
+            # Square footage effect
+            sqft = features.get('SquareFootage', 1000)
+            base_consumption += (sqft / 1000) * 15
+            
+            # Occupancy effect
+            occupancy = features.get('Occupancy', 5)
+            base_consumption += occupancy * 2
+            
+            # HVAC usage
+            if features.get('HVACUsage', 0):
+                base_consumption *= 1.3
+            
+            # Lighting usage
+            if features.get('LightingUsage', 0):
+                base_consumption += 5
+            
+            # Time of day effect
+            hour = features.get('Hour', 12)
+            if 7 <= hour <= 9 or 17 <= hour <= 19:  # Peak hours
+                base_consumption *= 1.2
+            elif 0 <= hour <= 6:  # Night time
+                base_consumption *= 0.7
+            
+            # Weekend effect
+            if features.get('IsWeekend', 0):
+                base_consumption *= 0.9
+            
+            # Add some realistic variation
+            variation = np.random.uniform(0.85, 1.15)
+            base_consumption *= variation
+            
+            return max(5.0, base_consumption)  # Minimum 5 kWh
+            
+        except Exception as e:
+            logger.error(f"Error in simple prediction: {str(e)}")
+            return 25.0  # Default fallback
+    
     def predict(self, data):
         """Make energy consumption prediction based on input data"""
         try:
@@ -209,41 +290,50 @@ class EnergyPredictor:
             # Create features
             features = self.create_features(data)
             
-            # Prepare features for prediction
-            feature_array = self.prepare_features(features)
-            
-            # Make prediction
-            if hasattr(self.model, 'predict'):
-                # For sklearn models
-                pred_scaled = self.model.predict(feature_array)
-                prediction = pred_scaled[0] if isinstance(pred_scaled, np.ndarray) else pred_scaled
+            if self.use_fallback:
+                # Use simple prediction calculation
+                prediction = self._calculate_simple_prediction(features)
+                model_type = "SimplePredictor"
+                confidence = 75.0  # Lower confidence for fallback
             else:
-                # For other model types
-                prediction = float(self.model(feature_array)[0])
-            
-            # Inverse transform if scaler is available
-            if self.scaler_y is not None:
-                try:
-                    prediction = self.scaler_y.inverse_transform([[prediction]])[0][0]
-                except Exception as e:
-                    logger.warning(f"Inverse scaling failed: {str(e)}")
+                # Prepare features for ML prediction
+                feature_array = self.prepare_features(features)
+                
+                # Make prediction
+                if hasattr(self.model, 'predict'):
+                    # For sklearn models
+                    pred_scaled = self.model.predict(feature_array)
+                    prediction = pred_scaled[0] if isinstance(pred_scaled, np.ndarray) else pred_scaled
+                else:
+                    # For other model types
+                    prediction = float(self.model(feature_array)[0])
+                
+                # Inverse transform if scaler is available
+                if self.scaler_y is not None:
+                    try:
+                        prediction = self.scaler_y.inverse_transform([[prediction]])[0][0]
+                    except Exception as e:
+                        logger.warning(f"Inverse scaling failed: {str(e)}")
+                
+                model_type = type(self.model).__name__
+                confidence = 85.0
             
             # Ensure prediction is positive and reasonable
             prediction = max(0, float(prediction))
             
             # Calculate confidence score (simplified approach)
-            base_confidence = 85
             confidence_variation = np.random.normal(0, 5)
-            confidence = min(95, max(70, base_confidence + confidence_variation))
+            confidence = min(95, max(70, confidence + confidence_variation))
             
             return {
                 'success': True,
                 'prediction': round(prediction, 2),
                 'confidence': round(confidence, 1),
                 'unit': 'kWh',
-                'model_type': type(self.model).__name__,
+                'model_type': model_type,
                 'features_used': len(features),
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'fallback_mode': self.use_fallback
             }
         
         except Exception as e:
