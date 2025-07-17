@@ -300,13 +300,32 @@ class EnergyPredictor:
                 feature_array = self.prepare_features(features)
                 
                 # Make prediction
-                if hasattr(self.model, 'predict'):
+                if isinstance(self.model, dict):
+                    # Handle dictionary-based model
+                    if 'model' in self.model:
+                        actual_model = self.model['model']
+                        if hasattr(actual_model, 'predict'):
+                            pred_scaled = actual_model.predict(feature_array)
+                            prediction = pred_scaled[0] if isinstance(pred_scaled, np.ndarray) else pred_scaled
+                        else:
+                            # Try calling as function
+                            prediction = float(actual_model(feature_array)[0])
+                    else:
+                        # Fallback for dictionary without 'model' key
+                        logger.warning("Model is a dictionary but doesn't contain 'model' key, using fallback")
+                        prediction = self._calculate_simple_prediction(features)
+                elif hasattr(self.model, 'predict'):
                     # For sklearn models
                     pred_scaled = self.model.predict(feature_array)
                     prediction = pred_scaled[0] if isinstance(pred_scaled, np.ndarray) else pred_scaled
                 else:
-                    # For other model types
-                    prediction = float(self.model(feature_array)[0])
+                    # For other model types (try calling as function)
+                    try:
+                        prediction = float(self.model(feature_array)[0])
+                    except (TypeError, AttributeError):
+                        # If model is not callable, use fallback
+                        logger.warning("Model is not callable, using fallback prediction")
+                        prediction = self._calculate_simple_prediction(features)
                 
                 # Inverse transform if scaler is available
                 if self.scaler_y is not None:
@@ -315,7 +334,13 @@ class EnergyPredictor:
                     except Exception as e:
                         logger.warning(f"Inverse scaling failed: {str(e)}")
                 
-                model_type = type(self.model).__name__
+                if isinstance(self.model, dict):
+                    if 'model' in self.model:
+                        model_type = type(self.model['model']).__name__
+                    else:
+                        model_type = "Dictionary-based model"
+                else:
+                    model_type = type(self.model).__name__
                 confidence = 85.0
             
             # Ensure prediction is positive and reasonable
@@ -353,7 +378,7 @@ def home():
         "message": "Energy Consumption Prediction API",
         "status": "running",
         "model_loaded": predictor.is_loaded,
-        "model_type": type(predictor.model).__name__ if predictor.model else "None",
+        "model_type": (type(predictor.model['model']).__name__ if isinstance(predictor.model, dict) and 'model' in predictor.model else type(predictor.model).__name__) if predictor.model else "None",
         "version": "1.0.0",
         "endpoints": {
             "/": "API information",
@@ -404,9 +429,18 @@ def model_info():
         if not predictor.is_loaded:
             return jsonify({"error": "Model not loaded"}), 400
         
+        # Determine model type
+        if isinstance(predictor.model, dict):
+            if 'model' in predictor.model:
+                model_type = type(predictor.model['model']).__name__
+            else:
+                model_type = "Dictionary-based model"
+        else:
+            model_type = type(predictor.model).__name__
+        
         return jsonify({
             "model_loaded": True,
-            "model_type": type(predictor.model).__name__,
+            "model_type": model_type,
             "feature_columns": predictor.feature_cols,
             "num_features": len(predictor.feature_cols),
             "sequence_length": predictor.sequence_length,
@@ -453,7 +487,11 @@ if __name__ == '__main__':
     print(f"Model loaded: {predictor.is_loaded}")
     
     if predictor.is_loaded:
-        print(f"Model type: {type(predictor.model).__name__}")
+        if isinstance(predictor.model, dict) and 'model' in predictor.model:
+            model_type = type(predictor.model['model']).__name__
+        else:
+            model_type = type(predictor.model).__name__
+        print(f"Model type: {model_type}")
         print(f"Features: {len(predictor.feature_cols)}")
         print(f"Scalers available: X={predictor.scaler_X is not None}, Y={predictor.scaler_y is not None}")
     else:
