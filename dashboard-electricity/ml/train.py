@@ -6,7 +6,10 @@ import pickle
 import os
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.svm import SVR
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Dropout
@@ -89,12 +92,12 @@ def create_features(df):
     df['Lighting_Hour'] = df['LightingUsage'] * df['Hour']
     df['Occupancy_SqFt'] = df['Occupancy'] / df['SquareFootage']
     
-    # Lag features
+    # Lag features (only for LSTM)
     for lag in [1, 2, 3, 6, 12, 24]:
         df[f'Energy_Lag_{lag}'] = df['EnergyConsumption'].shift(lag)
         df[f'Temp_Lag_{lag}'] = df['Temperature'].shift(lag)
     
-    # Rolling statistics
+    # Rolling statistics (only for LSTM)
     for window in [3, 6, 12, 24]:
         df[f'Energy_Rolling_Mean_{window}'] = df['EnergyConsumption'].rolling(window).mean()
         df[f'Energy_Rolling_Std_{window}'] = df['EnergyConsumption'].rolling(window).std()
@@ -106,9 +109,12 @@ def create_features(df):
     return df
 
 def prepare_data(df):
-    """Prepare features and target for modeling"""
-    # Prepare features and target
-    feature_cols = [col for col in df.columns if col not in ['Timestamp', 'EnergyConsumption']]
+    """Prepare features and target for traditional ML models"""
+    # Remove lag and rolling features for traditional ML
+    feature_cols = [col for col in df.columns if col not in ['Timestamp', 'EnergyConsumption'] 
+                   and not col.startswith('Energy_Lag_') and not col.startswith('Temp_Lag_') 
+                   and not col.startswith('Energy_Rolling_') and not col.startswith('Temp_Rolling_')]
+    
     X = df[feature_cols].values
     y = df['EnergyConsumption'].values
     
@@ -163,23 +169,78 @@ def prepare_data_for_lstm(df):
     
     return (X_train, X_test, y_train, y_test, scaler_X, scaler_y, feature_cols)
 
+def evaluate_model(model, X_test, y_test, scaler_y, model_name):
+    """Evaluate model performance"""
+    # Make predictions
+    y_pred_scaled = model.predict(X_test)
+    
+    # Inverse transform predictions
+    if hasattr(model, 'predict_proba'):
+        y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).flatten()
+    else:
+        y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).flatten()
+    
+    y_true = scaler_y.inverse_transform(y_test.reshape(-1, 1)).flatten()
+    
+    # Calculate metrics
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+    
+    # Calculate accuracy percentage (how close predictions are to actual values)
+    accuracy = max(0, 100 - (mae / np.mean(y_true)) * 100)
+    
+    print(f"\n{model_name} Performance:")
+    print(f"RMSE: {rmse:.2f}")
+    print(f"MAE: {mae:.2f}")
+    print(f"R² Score: {r2:.3f}")
+    print(f"Accuracy: {accuracy:.1f}%")
+    
+    return {
+        'model_name': model_name,
+        'rmse': rmse,
+        'mae': mae,
+        'r2': r2,
+        'accuracy': accuracy,
+        'model': model
+    }
+
+def train_traditional_models(X_train, X_test, y_train, y_test, scaler_y):
+    """Train traditional ML models"""
+    models = {
+        'Random Forest': RandomForestRegressor(n_estimators=100, random_state=42),
+        'Gradient Boosting': GradientBoostingRegressor(n_estimators=100, random_state=42),
+        'Linear Regression': LinearRegression(),
+        'SVR': SVR(kernel='rbf', C=1.0, gamma='scale')
+    }
+    
+    results = {}
+    
+    for name, model in models.items():
+        print(f"\nTraining {name}...")
+        model.fit(X_train, y_train)
+        results[name] = evaluate_model(model, X_test, y_test, scaler_y, name)
+    
+    return results
+
 def create_lstm_model(input_shape):
     """Create LSTM model for energy consumption prediction"""
     model = Sequential([
-        LSTM(128, return_sequences=True, input_shape=input_shape),
-        Dropout(0.3),
-        LSTM(64),
-        Dropout(0.3),
-        Dense(32, activation='relu'),
+        LSTM(64, return_sequences=True, input_shape=input_shape),
+        Dropout(0.2),
+        LSTM(32),
+        Dropout(0.2),
+        Dense(16, activation='relu'),
         Dense(1)
     ])
     
     model.compile(optimizer=Adam(learning_rate=0.001), loss='mse', metrics=['mae'])
     return model
 
-def train_model(X_train, X_test, y_train, y_test):
-    """Train the energy consumption prediction model"""
-    sequence_length = 24
+def train_lstm_model(X_train, X_test, y_train, y_test, scaler_y):
+    """Train LSTM model"""
+    sequence_length = 12  # Reduced from 24 for better performance
     
     # Create sequences for LSTM
     X_train_seq = np.array([X_train[i:i+sequence_length] 
@@ -202,13 +263,38 @@ def train_model(X_train, X_test, y_train, y_test):
     history = model.fit(
         X_train_seq, y_train_seq,
         validation_data=(X_test_seq, y_test_seq),
-        epochs=100,
+        epochs=50,  # Reduced from 100
         batch_size=32,
         callbacks=callbacks,
         verbose=1
     )
     
-    return model, history
+    # Evaluate LSTM
+    y_pred_scaled = model.predict(X_test_seq)
+    y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
+    y_true = scaler_y.inverse_transform(y_test_seq.reshape(-1, 1)).flatten()
+    
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+    accuracy = max(0, 100 - (mae / np.mean(y_true)) * 100)
+    
+    print(f"\nLSTM Performance:")
+    print(f"RMSE: {rmse:.2f}")
+    print(f"MAE: {mae:.2f}")
+    print(f"R² Score: {r2:.3f}")
+    print(f"Accuracy: {accuracy:.1f}%")
+    
+    return {
+        'model_name': 'LSTM',
+        'rmse': rmse,
+        'mae': mae,
+        'r2': r2,
+        'accuracy': accuracy,
+        'model': model,
+        'history': history
+    }
 
 if __name__ == "__main__":
     try:
@@ -225,47 +311,130 @@ if __name__ == "__main__":
         df = create_features(df)
         print("Features created successfully")
         
-        # Prepare data for LSTM
-        X_train, X_test, y_train, y_test, scaler_X, scaler_y, feature_cols = prepare_data_for_lstm(df)
+        # Train traditional ML models
+        X_train, X_val, X_test, y_train, y_val, y_test, scaler_X, scaler_y, feature_cols = prepare_data(df)
+        print("Data prepared for traditional ML models")
+        
+        traditional_results = train_traditional_models(X_train, X_test, y_train, y_test, scaler_y)
+        
+        # Train LSTM model
+        X_train_lstm, X_test_lstm, y_train_lstm, y_test_lstm, scaler_X_lstm, scaler_y_lstm, feature_cols_lstm = prepare_data_for_lstm(df)
         print("Data prepared for LSTM")
         
-        # Create and train model
-        model, history = train_model(X_train, X_test, y_train, y_test)
-        print("Model training completed")
+        lstm_result = train_lstm_model(X_train_lstm, X_test_lstm, y_train_lstm, y_test_lstm, scaler_y_lstm)
         
-        # Save model and scalers
-        model_path = os.path.join(models_dir, 'lstm_model.h5')
-        model.save(model_path)
-        print(f"Model saved to: {model_path}")
+        # Combine all results
+        all_results = {**traditional_results, 'LSTM': lstm_result}
+        
+        # Find the best model
+        best_model_name = max(all_results.keys(), key=lambda x: all_results[x]['accuracy'])
+        best_model = all_results[best_model_name]['model']
+        best_scaler_X = scaler_X if best_model_name != 'LSTM' else scaler_X_lstm
+        best_scaler_y = scaler_y if best_model_name != 'LSTM' else scaler_y_lstm
+        best_feature_cols = feature_cols if best_model_name != 'LSTM' else feature_cols_lstm
+        
+        print(f"\n{'='*50}")
+        print(f"BEST MODEL: {best_model_name}")
+        print(f"Accuracy: {all_results[best_model_name]['accuracy']:.1f}%")
+        print(f"R² Score: {all_results[best_model_name]['r2']:.3f}")
+        print(f"{'='*50}")
+        
+        # Save the best model and scalers
+        model_path = os.path.join(models_dir, 'electricity_consumption_models.pkl')
+        with open(model_path, 'wb') as f:
+            pickle.dump(best_model, f)
         
         with open(os.path.join(models_dir, 'scaler_X.pkl'), 'wb') as f:
-            pickle.dump(scaler_X, f)
+            pickle.dump(best_scaler_X, f)
         with open(os.path.join(models_dir, 'scaler_y.pkl'), 'wb') as f:
-            pickle.dump(scaler_y, f)
+            pickle.dump(best_scaler_y, f)
         with open(os.path.join(models_dir, 'feature_cols.pkl'), 'wb') as f:
-            pickle.dump(feature_cols, f)
+            pickle.dump(best_feature_cols, f)
+        
+        # Save model comparison results
+        comparison_data = {
+            'best_model': best_model_name,
+            'all_results': {name: {k: v for k, v in result.items() if k != 'model'} 
+                           for name, result in all_results.items()}
+        }
+        
+        with open(os.path.join(models_dir, 'model_results.pkl'), 'wb') as f:
+            pickle.dump(comparison_data, f)
         
         print("Model and scalers saved successfully!")
         
-        # Verify files exist
-        for file_name in ['lstm_model.h5', 'scaler_X.pkl', 'scaler_y.pkl', 'feature_cols.pkl']:
-            file_path = os.path.join(models_dir, file_name)
-            if os.path.exists(file_path):
-                print(f"Verified {file_name} exists")
-            else:
-                print(f"WARNING: {file_name} not found!")
+        # Create comparison plot
+        model_names = list(all_results.keys())
+        accuracies = [all_results[name]['accuracy'] for name in model_names]
         
-        # Plot training history
-        plt.figure(figsize=(10, 6))
-        plt.plot(history.history['loss'], label='Training Loss')
-        plt.plot(history.history['val_loss'], label='Validation Loss')
-        plt.title('Model Training History')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.savefig(os.path.join(models_dir, 'training_history.png'))
+        plt.figure(figsize=(12, 8))
+        
+        # Accuracy comparison
+        plt.subplot(2, 2, 1)
+        bars = plt.bar(model_names, accuracies, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+        plt.title('Model Accuracy Comparison')
+        plt.ylabel('Accuracy (%)')
+        plt.xticks(rotation=45)
+        
+        # Add value labels on bars
+        for bar, acc in zip(bars, accuracies):
+            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
+                    f'{acc:.1f}%', ha='center', va='bottom')
+        
+        # R² Score comparison
+        plt.subplot(2, 2, 2)
+        r2_scores = [all_results[name]['r2'] for name in model_names]
+        bars = plt.bar(model_names, r2_scores, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+        plt.title('Model R² Score Comparison')
+        plt.ylabel('R² Score')
+        plt.xticks(rotation=45)
+        
+        for bar, r2 in zip(bars, r2_scores):
+            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
+                    f'{r2:.3f}', ha='center', va='bottom')
+        
+        # RMSE comparison
+        plt.subplot(2, 2, 3)
+        rmse_scores = [all_results[name]['rmse'] for name in model_names]
+        bars = plt.bar(model_names, rmse_scores, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+        plt.title('Model RMSE Comparison')
+        plt.ylabel('RMSE')
+        plt.xticks(rotation=45)
+        
+        for bar, rmse in zip(bars, rmse_scores):
+            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
+                    f'{rmse:.2f}', ha='center', va='bottom')
+        
+        # MAE comparison
+        plt.subplot(2, 2, 4)
+        mae_scores = [all_results[name]['mae'] for name in model_names]
+        bars = plt.bar(model_names, mae_scores, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+        plt.title('Model MAE Comparison')
+        plt.ylabel('MAE')
+        plt.xticks(rotation=45)
+        
+        for bar, mae in zip(bars, mae_scores):
+            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
+                    f'{mae:.2f}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(models_dir, 'comprehensive_model_analysis.png'), dpi=300, bbox_inches='tight')
         plt.close()
-        print("Training history plot saved")
+        
+        # Plot training history for LSTM if available
+        if 'history' in lstm_result:
+            plt.figure(figsize=(10, 6))
+            plt.plot(lstm_result['history'].history['loss'], label='Training Loss')
+            plt.plot(lstm_result['history'].history['val_loss'], label='Validation Loss')
+            plt.title('LSTM Model Training History')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.savefig(os.path.join(models_dir, 'training_history.png'))
+            plt.close()
+        
+        print("Model comparison plots saved successfully!")
+        print(f"\nBest model ({best_model_name}) saved with accuracy: {all_results[best_model_name]['accuracy']:.1f}%")
                 
     except Exception as e:
         print(f"Error during training: {str(e)}")

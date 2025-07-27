@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Brain, Zap, Thermometer, Droplets, Home, Users, Calendar, Clock } from 'lucide-react'
+import { Brain, Zap, Thermometer, Home, Users, Clock } from 'lucide-react'
 
 interface PredictionFormData {
   temperature: number
@@ -81,7 +81,7 @@ const EnergyPredictor: React.FC = () => {
     }
   }
 
-  const handleInputChange = (name: string, value: any) => {
+  const handleInputChange = (name: string, value: string | number | boolean) => {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
