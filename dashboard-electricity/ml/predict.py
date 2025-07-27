@@ -64,8 +64,43 @@ class EnergyPredictor:
             if os.path.exists(model_path):
                 try:
                     with open(model_path, 'rb') as f:
-                        self.model = pickle.load(f)
-                    logger.info("Main model loaded successfully")
+                        model_data = pickle.load(f)
+                    
+                    # Extract components from the model data dictionary
+                    if isinstance(model_data, dict):
+                        # Load models dictionary and choose the best performing one
+                        if 'models' in model_data:
+                            models_dict = model_data['models']
+                            # Choose the first available model (or you could choose based on performance)
+                            model_names = list(models_dict.keys())
+                            if model_names:
+                                chosen_model = model_names[0]  # Use first model
+                                self.model = models_dict[chosen_model]
+                                logger.info(f"Model '{chosen_model}' loaded successfully")
+                            else:
+                                raise ValueError("No models found in the models dictionary")
+                        else:
+                            raise ValueError("'models' key not found in model file")
+                        
+                        # Load feature columns if available
+                        if 'feature_columns' in model_data:
+                            self.feature_cols = model_data['feature_columns']
+                            logger.info("Feature columns loaded from model file")
+                        
+                        # Load scalers if available in the model data
+                        if 'scaler_X' in model_data:
+                            self.scaler_X = model_data['scaler_X']
+                            logger.info("X scaler loaded from model file")
+                        
+                        if 'scaler_y' in model_data:
+                            self.scaler_y = model_data['scaler_y']
+                            logger.info("Y scaler loaded from model file")
+                            
+                    else:
+                        # Old format - model is stored directly
+                        self.model = model_data
+                        logger.info("Model loaded successfully (legacy format)")
+                        
                 except Exception as e:
                     logger.error(f"Error loading main model: {str(e)}")
                     if not TF_AVAILABLE and ("tensorflow" in str(e) or "keras" in str(e)):
@@ -79,28 +114,31 @@ class EnergyPredictor:
                 logger.warning(f"Model file not found: {model_path}")
                 return
             
-            # Load scalers
-            scaler_x_path = os.path.join(self.models_path, 'scaler_X.pkl')
-            if os.path.exists(scaler_x_path):
-                with open(scaler_x_path, 'rb') as f:
-                    self.scaler_X = pickle.load(f)
-                logger.info("X scaler loaded successfully")
+            # Only load separate scalers if they weren't loaded from the model data
+            if self.scaler_X is None:
+                scaler_x_path = os.path.join(self.models_path, 'scaler_X.pkl')
+                if os.path.exists(scaler_x_path):
+                    with open(scaler_x_path, 'rb') as f:
+                        self.scaler_X = pickle.load(f)
+                    logger.info("X scaler loaded successfully from separate file")
             
-            scaler_y_path = os.path.join(self.models_path, 'scaler_y.pkl')
-            if os.path.exists(scaler_y_path):
-                with open(scaler_y_path, 'rb') as f:
-                    self.scaler_y = pickle.load(f)
-                logger.info("Y scaler loaded successfully")
+            if self.scaler_y is None:
+                scaler_y_path = os.path.join(self.models_path, 'scaler_y.pkl')
+                if os.path.exists(scaler_y_path):
+                    with open(scaler_y_path, 'rb') as f:
+                        self.scaler_y = pickle.load(f)
+                    logger.info("Y scaler loaded successfully from separate file")
             
-            # Load feature columns
-            feature_cols_path = os.path.join(self.models_path, 'feature_cols.pkl')
-            if os.path.exists(feature_cols_path):
-                with open(feature_cols_path, 'rb') as f:
-                    self.feature_cols = pickle.load(f)
-                logger.info("Feature columns loaded successfully")
-            else:
-                self.feature_cols = self._create_default_feature_columns()
-                logger.info("Using default feature columns")
+            # Only load separate feature columns if they weren't loaded from the model data
+            if not self.feature_cols:
+                feature_cols_path = os.path.join(self.models_path, 'feature_cols.pkl')
+                if os.path.exists(feature_cols_path):
+                    with open(feature_cols_path, 'rb') as f:
+                        self.feature_cols = pickle.load(f)
+                    logger.info("Feature columns loaded successfully from separate file")
+                else:
+                    self.feature_cols = self._create_default_feature_columns()
+                    logger.info("Using default feature columns")
             
             self.is_loaded = True
             if self.use_fallback:

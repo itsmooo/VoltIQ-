@@ -71,7 +71,7 @@ const predictEnergyConsumption = async (data) => {
     }
 
     const pythonProcess = spawn('python', [
-      path.join(__dirname, '..', '..', 'src', 'ml', 'api_bridge.py'),
+      path.join(__dirname, '..', '..', 'ml', 'api_bridge.py'),
       JSON.stringify(data)
     ]);
 
