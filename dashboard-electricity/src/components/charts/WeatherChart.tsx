@@ -23,11 +23,23 @@ ChartJS.register(
   Legend
 );
 
-interface WeatherChartProps {
-  data: WeatherData[];
+interface PredictionResult {
+  success: boolean;
+  prediction: number;
+  confidence: number;
+  unit: string;
+  model_type: string;
+  features_used: number;
+  timestamp: string;
+  error?: string;
 }
 
-const WeatherChart: React.FC<WeatherChartProps> = ({ data }) => {
+interface WeatherChartProps {
+  data: WeatherData[];
+  predictionData?: PredictionResult | null;
+}
+
+const WeatherChart: React.FC<WeatherChartProps> = ({ data, predictionData }) => {
   // Format dates for labels
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -37,28 +49,56 @@ const WeatherChart: React.FC<WeatherChartProps> = ({ data }) => {
   // Process data for chart
   const labels = data.map(item => formatDate(item.timestamp));
   
+  const datasets = [
+    {
+      label: 'Temperature (°C)',
+      data: data.map(item => item.temperature),
+      borderColor: 'rgb(239, 68, 68)', // Red
+      backgroundColor: 'rgba(239, 68, 68, 0.5)',
+      yAxisID: 'y',
+      tension: 0.2,
+      pointRadius: 2,
+    },
+    {
+      label: 'Humidity (%)',
+      data: data.map(item => item.humidity),
+      borderColor: 'rgb(59, 130, 246)', // Blue
+      backgroundColor: 'rgba(59, 130, 246, 0.5)',
+      yAxisID: 'y1',
+      tension: 0.2,
+      pointRadius: 2,
+    }
+  ];
+
+  // Add prediction correlation if available
+  if (predictionData?.success) {
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    labels.push(today);
+    
+    // Extend weather data with null for prediction point
+    datasets[0].data = [...data.map(item => item.temperature), null];
+    datasets[1].data = [...data.map(item => item.humidity), null];
+    
+    // Add prediction indicator
+    datasets.push({
+      label: `Prediction Impact (${predictionData.confidence.toFixed(1)}% confidence)`,
+      data: [...Array(data.length).fill(null), predictionData.prediction / 10], // Scale down for visibility
+      borderColor: 'rgb(16, 185, 129)', // Green
+      backgroundColor: 'rgba(16, 185, 129, 0.3)',
+      yAxisID: 'y',
+      borderWidth: 3,
+      borderDash: [10, 5],
+      fill: false,
+      tension: 0,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      pointStyle: 'circle',
+    });
+  }
+
   const chartData = {
     labels,
-    datasets: [
-      {
-        label: 'Temperature (°C)',
-        data: data.map(item => item.temperature),
-        borderColor: 'rgb(239, 68, 68)', // Red
-        backgroundColor: 'rgba(239, 68, 68, 0.5)',
-        yAxisID: 'y',
-        tension: 0.2,
-        pointRadius: 2,
-      },
-      {
-        label: 'Humidity (%)',
-        data: data.map(item => item.humidity),
-        borderColor: 'rgb(59, 130, 246)', // Blue
-        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        yAxisID: 'y1',
-        tension: 0.2,
-        pointRadius: 2,
-      }
-    ],
+    datasets
   };
 
   const options = {
@@ -72,6 +112,21 @@ const WeatherChart: React.FC<WeatherChartProps> = ({ data }) => {
     plugins: {
       title: {
         display: false,
+      },
+      tooltip: {
+        callbacks: {
+          afterBody: (tooltipItems: any) => {
+            if (predictionData?.success && tooltipItems[0].dataIndex === data.length) {
+              return [
+                `Predicted Consumption: ${predictionData.prediction.toFixed(2)} kWh`,
+                `Model: ${predictionData.model_type}`,
+                `Features: ${predictionData.features_used}`,
+                `Timestamp: ${new Date(predictionData.timestamp).toLocaleString()}`
+              ];
+            }
+            return [];
+          }
+        }
       },
     },
     scales: {

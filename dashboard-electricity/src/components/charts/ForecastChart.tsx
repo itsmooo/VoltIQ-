@@ -25,12 +25,24 @@ ChartJS.register(
   Filler
 );
 
+interface PredictionResult {
+  success: boolean;
+  prediction: number;
+  confidence: number;
+  unit: string;
+  model_type: string;
+  features_used: number;
+  timestamp: string;
+  error?: string;
+}
+
 interface ForecastChartProps {
   data: ForecastData[];
   showConfidenceInterval?: boolean;
+  predictionData?: PredictionResult | null;
 }
 
-const ForecastChart: React.FC<ForecastChartProps> = ({ data, showConfidenceInterval = false }) => {
+const ForecastChart: React.FC<ForecastChartProps> = ({ data, showConfidenceInterval = false, predictionData }) => {
   // Format dates for labels
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -80,6 +92,30 @@ const ForecastChart: React.FC<ForecastChartProps> = ({ data, showConfidenceInter
     );
   }
 
+  // Add AI prediction if available
+  if (predictionData?.success) {
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    labels.push(today);
+    
+    // Extend forecast data with null for prediction point
+    datasets[0].data = [...predictedValues, null];
+    
+    // Add AI prediction dataset
+    datasets.push({
+      label: `AI Prediction (${predictionData.confidence.toFixed(1)}% confidence)`,
+      data: [...Array(data.length).fill(null), predictionData.prediction],
+      borderColor: 'rgb(239, 68, 68)', // Red
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderWidth: 3,
+      borderDash: [8, 4],
+      fill: false,
+      tension: 0,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      pointStyle: 'triangle',
+    });
+  }
+
   const chartData = {
     labels,
     datasets
@@ -107,8 +143,21 @@ const ForecastChart: React.FC<ForecastChartProps> = ({ data, showConfidenceInter
             if (!showConfidenceInterval) return '';
             
             const index = tooltipItems[0].dataIndex;
-            const confidence = data[index].confidence;
-            return `Confidence: ${confidence.toFixed(1)}%`;
+            if (index < data.length) {
+              const confidence = data[index].confidence;
+              return `Confidence: ${confidence.toFixed(1)}%`;
+            }
+            return '';
+          },
+          afterBody: (tooltipItems: any) => {
+            if (predictionData?.success && tooltipItems[0].dataIndex === data.length) {
+              return [
+                `Model: ${predictionData.model_type}`,
+                `Features: ${predictionData.features_used}`,
+                `Timestamp: ${new Date(predictionData.timestamp).toLocaleString()}`
+              ];
+            }
+            return [];
           }
         }
       },
@@ -128,6 +177,10 @@ const ForecastChart: React.FC<ForecastChartProps> = ({ data, showConfidenceInter
         grid: {
           color: 'rgba(0, 0, 0, 0.05)',
         },
+        title: {
+          display: true,
+          text: 'Consumption (kWh)'
+        }
       },
     },
     interaction: {

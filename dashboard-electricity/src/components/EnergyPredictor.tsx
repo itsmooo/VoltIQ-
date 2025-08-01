@@ -41,7 +41,11 @@ interface ModelInfo {
   model_path: string
 }
 
-const EnergyPredictor: React.FC = () => {
+interface EnergyPredictorProps {
+  onPredictionComplete?: (prediction: PredictionResult) => void
+}
+
+const EnergyPredictor: React.FC<EnergyPredictorProps> = ({ onPredictionComplete }) => {
   const [formData, setFormData] = useState<PredictionFormData>({
     temperature: 25,
     humidity: 60,
@@ -63,6 +67,13 @@ const EnergyPredictor: React.FC = () => {
   useEffect(() => {
     fetchModelInfo()
   }, [])
+
+  // Notify parent component when prediction is complete
+  useEffect(() => {
+    if (prediction && onPredictionComplete) {
+      onPredictionComplete(prediction)
+    }
+  }, [prediction, onPredictionComplete])
 
   const fetchModelInfo = async () => {
     try {
@@ -107,7 +118,7 @@ const EnergyPredictor: React.FC = () => {
       if (data.success) {
         setPrediction(data)
       } else {
-        setPrediction({
+        const errorPrediction = {
           success: false,
           prediction: 0,
           confidence: 0,
@@ -116,10 +127,11 @@ const EnergyPredictor: React.FC = () => {
           features_used: 0,
           timestamp: new Date().toISOString(),
           error: data.error || "Prediction failed"
-        })
+        }
+        setPrediction(errorPrediction)
       }
     } catch (error) {
-      setPrediction({
+      const errorPrediction = {
         success: false,
         prediction: 0,
         confidence: 0,
@@ -128,7 +140,8 @@ const EnergyPredictor: React.FC = () => {
         features_used: 0,
         timestamp: new Date().toISOString(),
         error: error instanceof Error ? error.message : "Network error occurred"
-      })
+      }
+      setPrediction(errorPrediction)
     } finally {
       setLoading(false)
     }
