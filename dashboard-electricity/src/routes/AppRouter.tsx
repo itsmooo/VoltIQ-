@@ -8,10 +8,6 @@ import AuthLayout from '../layouts/AuthLayout';
 
 // Pages
 import Dashboard from '../pages/Dashboard';
-import Forecasting from '../pages/Forecasting';
-import DataManagement from '../pages/DataManagement';
-import Reports from '../pages/Reports';
-import Settings from '../pages/Settings';
 import Login from '../pages/Login';
 import Signup from '../pages/Signup';
 import NotFound from '../pages/NotFound';
@@ -56,37 +52,7 @@ const AppRouter: React.FC = () => {
           </ProtectedRoute>
         } />
         
-        <Route path="/forecasting" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <Forecasting />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/data" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <DataManagement />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/reports" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <Reports />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/settings" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <Settings />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
+
         
         {/* 404 route */}
         <Route path="*" element={<NotFound />} />

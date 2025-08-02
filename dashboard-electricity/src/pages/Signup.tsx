@@ -1,44 +1,75 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Zap } from 'lucide-react';
+import { Zap, UserPlus } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const Signup: React.FC = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const { signup, isLoading } = useAuth();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    role: 'viewer'
+  });
+  const [localError, setLocalError] = useState('');
+  const { signup, isLoading, error: authError, clearError } = useAuth();
   const navigate = useNavigate();
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setLocalError('');
+    clearError();
     
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    // Validation
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+      setLocalError('Please fill in all fields');
+      return;
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      setLocalError('Passwords do not match');
+      return;
+    }
+    
+    if (formData.password.length < 6) {
+      setLocalError('Password must be at least 6 characters long');
+      return;
+    }
+    
+    // Password strength validation
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!passwordRegex.test(formData.password)) {
+      setLocalError('Password must contain at least one uppercase letter, one lowercase letter, and one number');
       return;
     }
     
     try {
-      await signup(name, email, password);
+      await signup(formData.name, formData.email, formData.password, formData.role);
       navigate('/');
-    } catch (err) {
-      setError('Failed to create account');
+    } catch (err: any) {
+      setLocalError(err.message || 'Signup failed');
     }
   };
+
+  const error = localError || authError;
 
   return (
     <div className="w-full max-w-md">
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 mb-4">
-          <Zap size={28} />
+          <UserPlus size={28} />
         </div>
-        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">PowerForecast</h2>
+        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Join VoltIQ</h2>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          Create your account
+          Create your account to get started
         </p>
       </div>
       
@@ -59,10 +90,12 @@ const Signup: React.FC = () => {
                 id="name"
                 name="name"
                 type="text"
+                autoComplete="name"
                 required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={formData.name}
+                onChange={handleChange}
                 className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-colors duration-200"
+                placeholder="Enter your full name"
               />
             </div>
           </div>
@@ -78,10 +111,30 @@ const Signup: React.FC = () => {
                 type="email"
                 autoComplete="email"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={formData.email}
+                onChange={handleChange}
                 className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-colors duration-200"
+                placeholder="Enter your email"
               />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Role
+            </label>
+            <div className="mt-1">
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-colors duration-200"
+              >
+                <option value="viewer">Viewer - Basic access</option>
+                <option value="analyst">Analyst - Data analysis</option>
+                <option value="admin">Admin - Full access</option>
+              </select>
             </div>
           </div>
 
@@ -94,12 +147,17 @@ const Signup: React.FC = () => {
                 id="password"
                 name="password"
                 type="password"
+                autoComplete="new-password"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={formData.password}
+                onChange={handleChange}
                 className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-colors duration-200"
+                placeholder="Create a password"
               />
             </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Must be at least 6 characters with uppercase, lowercase, and number
+            </p>
           </div>
 
           <div>
@@ -111,10 +169,12 @@ const Signup: React.FC = () => {
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
+                autoComplete="new-password"
                 required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                value={formData.confirmPassword}
+                onChange={handleChange}
                 className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-colors duration-200"
+                placeholder="Confirm your password"
               />
             </div>
           </div>
@@ -131,19 +191,32 @@ const Signup: React.FC = () => {
                   <span className="ml-2">Creating account...</span>
                 </>
               ) : (
-                'Sign up'
+                'Create account'
               )}
             </button>
           </div>
         </form>
         
-        <div className="mt-6 text-center text-sm">
-          <p className="text-gray-600 dark:text-gray-400">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500">
-              Sign in
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                Already have an account?
+              </span>
+            </div>
+          </div>
+          
+          <div className="mt-4 text-center">
+            <Link 
+              to="/login" 
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-500 font-medium"
+            >
+              Sign in to your account
             </Link>
-          </p>
+          </div>
         </div>
       </div>
     </div>

@@ -9,7 +9,6 @@ import AuthLayout from '../layouts/AuthLayout';
 // Pages
 import Home from '../pages/Home';
 import Dashboard from '../pages/Dashboard';
-import Forecasting from '../pages/Forecasting';
 import DataManagement from '../pages/DataManagement';
 import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
@@ -60,13 +59,7 @@ const AppRouter: React.FC = () => {
           </ProtectedRoute>
         } />
         
-        <Route path="/forecasting" element={
-          <ProtectedRoute>
-            <MainLayout>
-              <Forecasting />
-            </MainLayout>
-          </ProtectedRoute>
-        } />
+
         
         <Route path="/data" element={
           <ProtectedRoute>

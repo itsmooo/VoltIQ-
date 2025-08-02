@@ -2,10 +2,6 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   Home, 
-  LineChart, 
-  Database, 
-  FileText, 
-  Settings, 
   LogOut, 
   X
 } from 'lucide-react';
@@ -21,10 +17,6 @@ const Sidebar: React.FC<SidebarProps> = ({ mobile = false, onClose }) => {
   
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <Home size={20} /> },
-    { name: 'Forecasting', path: '/forecasting', icon: <LineChart size={20} /> },
-    { name: 'Data Management', path: '/data', icon: <Database size={20} /> },
-    { name: 'Reports', path: '/reports', icon: <FileText size={20} /> },
-    { name: 'Settings', path: '/settings', icon: <Settings size={20} /> },
   ];
   
   const navLinkClasses = ({ isActive }: { isActive: boolean }) => 
