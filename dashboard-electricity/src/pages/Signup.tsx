@@ -9,8 +9,7 @@ const Signup: React.FC = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    role: 'viewer'
+    confirmPassword: ''
   });
   const [localError, setLocalError] = useState('');
   const { signup, isLoading, error: authError, clearError } = useAuth();
@@ -52,7 +51,7 @@ const Signup: React.FC = () => {
     }
     
     try {
-      await signup(formData.name, formData.email, formData.password, formData.role);
+      await signup(formData.name, formData.email, formData.password);
       navigate('/');
     } catch (err: any) {
       setLocalError(err.message || 'Signup failed');
@@ -119,24 +118,7 @@ const Signup: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Role
-            </label>
-            <div className="mt-1">
-              <select
-                id="role"
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-colors duration-200"
-              >
-                <option value="viewer">Viewer - Basic access</option>
-                <option value="analyst">Analyst - Data analysis</option>
-                <option value="admin">Admin - Full access</option>
-              </select>
-            </div>
-          </div>
+
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">

@@ -15,10 +15,10 @@ const Login: React.FC = () => {
     
     try {
       await login(email, password);
-      // Redirect to the dashboard application
-      window.location.href = 'http://localhost:5173';
-    } catch (err) {
-      setError('Invalid email or password');
+      // Redirect to dashboard after successful login
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
     }
   };
 

@@ -11,6 +11,7 @@ import Dashboard from '../pages/Dashboard';
 import Login from '../pages/Login';
 import Signup from '../pages/Signup';
 import NotFound from '../pages/NotFound';
+import UserManagement from '../pages/UserManagement';
 
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -22,6 +23,25 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Admin-only route component
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -52,7 +72,14 @@ const AppRouter: React.FC = () => {
           </ProtectedRoute>
         } />
         
-
+        {/* Admin-only routes */}
+        <Route path="/users" element={
+          <AdminRoute>
+            <MainLayout>
+              <UserManagement />
+            </MainLayout>
+          </AdminRoute>
+        } />
         
         {/* 404 route */}
         <Route path="*" element={<NotFound />} />

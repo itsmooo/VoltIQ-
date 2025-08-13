@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   Home, 
+  Users,
   LogOut, 
   X
 } from 'lucide-react';
@@ -13,11 +14,16 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ mobile = false, onClose }) => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <Home size={20} /> },
   ];
+
+  // Add Users management for admins
+  if (user?.role === 'admin') {
+    navItems.push({ name: 'Users', path: '/users', icon: <Users size={20} /> });
+  }
   
   const navLinkClasses = ({ isActive }: { isActive: boolean }) => 
     `flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors duration-150 ${

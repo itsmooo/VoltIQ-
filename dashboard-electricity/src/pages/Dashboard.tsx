@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useData } from '../context/DataContext';
-import { ArrowUp, ArrowDown, RefreshCw, AlertTriangle, DollarSign, TrendingUp, Clock, Brain } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { ArrowUp, ArrowDown, RefreshCw, AlertTriangle, DollarSign, TrendingUp, Clock, Brain, Users, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import EnergyPredictor from '../components/EnergyPredictor';
 
 // Components
@@ -25,13 +27,39 @@ interface PredictionResult {
 
 const Dashboard: React.FC = () => {
   const { consumptionData, forecastData, weatherData, isLoading, refreshData } = useData();
+  const { user: currentUser } = useAuth();
   const [latestPrediction, setLatestPrediction] = useState<PredictionResult | null>(null);
   const [predictionHistory, setPredictionHistory] = useState<PredictionResult[]>([]);
+  const [userCount, setUserCount] = useState<number>(0);
 
   useEffect(() => {
     // Fetch data on initial load
     refreshData();
-  }, []);
+    
+    // Fetch user count for admins
+    if (currentUser?.role === 'admin') {
+      fetchUserCount();
+    }
+  }, [currentUser?.role]);
+
+  const fetchUserCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserCount(data.users.length);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user count:', error);
+    }
+  };
 
   // Handle prediction completion from EnergyPredictor
   const handlePredictionComplete = (prediction: PredictionResult) => {
@@ -139,18 +167,46 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <PageTitle title="Dashboard" subtitle="Overview of electricity consumption and forecasts" />
-        
-        <button 
-          onClick={() => refreshData()}
+      {/* Page Title and Actions */}
+      <div className="flex items-center justify-between">
+        <PageTitle title="Dashboard" subtitle="Monitor your electricity consumption and forecasts" />
+        <button
+          onClick={refreshData}
           disabled={isLoading}
-          className="flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors duration-200"
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-colors duration-200"
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh Data
         </button>
       </div>
+
+      {/* Admin Quick Access */}
+      {currentUser?.role === 'admin' && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
+                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Admin Panel
+                </h3>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Quick access to system administration
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/users"
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors duration-200"
+            >
+              <Users className="h-4 w-4" />
+              <span>Manage Users</span>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="space-y-6">
@@ -190,12 +246,21 @@ const Dashboard: React.FC = () => {
               subtitle={latestPrediction?.success ? "Includes AI prediction" : "Total for next 7 days"}
             />
             
-            <MetricCard 
-              title="Average Temperature" 
-              value={`${(averageTemperature || 0).toFixed(1)}°C`}
-              subtitle="Last 30 days"
-              icon={<AlertTriangle className="text-yellow-500" />}
-            />
+            {currentUser?.role === 'admin' ? (
+              <MetricCard 
+                title="Total Users" 
+                value={userCount.toString()}
+                subtitle="System users"
+                icon={<Users className="text-blue-500" />}
+              />
+            ) : (
+              <MetricCard 
+                title="Average Temperature" 
+                value={`${(averageTemperature || 0).toFixed(1)}°C`}
+                subtitle="Last 30 days"
+                icon={<AlertTriangle className="text-yellow-500" />}
+              />
+            )}
           </div>
 
           {/* Energy Predictor */}

@@ -2,10 +2,14 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
 
 interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   role: 'admin' | 'analyst' | 'viewer';
+  isActive: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface AuthContextType {
@@ -20,7 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // API configuration
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://localhost:5000/api/auth';
 const axiosInstance = axios.create({
   baseURL: API_URL,
   headers: {
@@ -68,9 +72,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       setUser(user);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
-      throw error;
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      throw new Error('Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -84,9 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       setUser(user);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Signup failed:', error);
-      throw error;
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      throw new Error('Signup failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

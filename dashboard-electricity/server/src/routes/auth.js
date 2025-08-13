@@ -260,4 +260,161 @@ router.put('/users/:id/status', authenticateToken, authorize('admin'), async (re
   }
 });
 
+// @route   PUT /api/auth/users/:id/profile
+// @desc    Update user profile (admin only)
+// @access  Private/Admin
+router.put('/users/:id/profile', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    const updates = {};
+
+    if (name) updates.name = name;
+    if (email) {
+      // Check if email is already taken by another user
+      const existingUser = await User.findOne({ email, _id: { $ne: req.params.id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already taken'
+        });
+      }
+      updates.email = email;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User profile updated successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Update user profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during profile update'
+    });
+  }
+});
+
+// @route   PUT /api/auth/users/:id/role
+// @desc    Update user role (admin only)
+// @access  Private/Admin
+router.put('/users/:id/role', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { role } = req.body;
+    
+    if (!['admin', 'viewer', 'analyst'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role. Must be admin, viewer, or analyst'
+      });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent admin from changing their own role
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot change your own role'
+      });
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `User role updated to ${role} successfully`,
+      user: user.toJSON()
+    });
+  } catch (error) {
+    console.error('Update user role error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   DELETE /api/auth/users/:id
+// @desc    Delete user (admin only)
+// @access  Private/Admin
+router.delete('/users/:id', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent admin from deleting themselves
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete your own account'
+      });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   GET /api/auth/users/:id
+// @desc    Get user by ID (admin only)
+// @access  Private/Admin
+router.get('/users/:id', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      user
+    });
+  } catch (error) {
+    console.error('Get user by ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 module.exports = router; 
